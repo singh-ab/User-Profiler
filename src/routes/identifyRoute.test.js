@@ -14,11 +14,13 @@ beforeEach(async () => {
   await prisma.contact.deleteMany();
 }, 10000); // Optional: Increased timeout if needed
 
+// Disconnect Prisma after all tests are done
 afterAll(async () => {
   await prisma.$disconnect();
 });
 
 describe("POST /identify", () => {
+  // Test case for creating a new primary contact
   it("should create a new primary contact", async () => {
     const response = await request(app)
       .post("/identify")
@@ -31,6 +33,7 @@ describe("POST /identify", () => {
     expect(response.body.secondaryContactIds).toEqual([]);
   });
 
+  // Test case for creating a secondary contact with a new email
   it("should create a secondary contact for existing primary contact with new email", async () => {
     // Create primary contact first
     const primaryResponse = await request(app)
@@ -54,6 +57,7 @@ describe("POST /identify", () => {
     expect(response.body.secondaryContactIds.length).toBe(1);
   });
 
+  // Test case for creating a secondary contact with a new phone number
   it("should create a secondary contact for existing primary contact with new phone number", async () => {
     // Create primary contact first
     const primaryResponse = await request(app)
@@ -77,6 +81,7 @@ describe("POST /identify", () => {
     expect(response.body.secondaryContactIds.length).toBe(1);
   });
 
+  // Test case for creating a new primary contact with completely new data
   it("should create a new primary contact for completely new data", async () => {
     const response = await request(app)
       .post("/identify")
@@ -89,6 +94,7 @@ describe("POST /identify", () => {
     expect(response.body.secondaryContactIds).toEqual([]);
   });
 
+  // Test case for handling missing email and phone number
   it("should return an error for missing email and phone number", async () => {
     const response = await request(app).post("/identify").send({});
 
@@ -96,6 +102,7 @@ describe("POST /identify", () => {
     expect(response.body.error).toBe("Email or phone number is required.");
   });
 
+  // Test case for handling multiple secondary contacts correctly
   it("should handle multiple secondary contacts correctly", async () => {
     // Step 1: Create primary contact first
     const primaryResponse = await request(app)
@@ -140,12 +147,6 @@ describe("POST /identify", () => {
       response2.body.primaryContactId
     );
     expect(response3.body.emails).toContain("test5@example.com");
-
-    // Corrected expectation: "5566778899" is a phone number, not an email
-    // Removed the incorrect line
-    // expect(response3.body.emails).toContain("5566778899"); // Incorrect expectation
-
-    // Added the correct expectation
     expect(response3.body.phoneNumbers).toContain("5566778899");
 
     // Additionally, verify that phoneNumbers include both existing and new
