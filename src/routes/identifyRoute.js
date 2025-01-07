@@ -14,19 +14,15 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    const existingContacts = await prisma.contact.findMany({
+    // 1. Find contacts that overlap with the provided email or phone number
+    const overlappingContacts = await prisma.contact.findMany({
       where: {
         OR: [{ email }, { phoneNumber }],
       },
     });
 
-    let primaryContactId;
-    let emails = [];
-    let phoneNumbers = [];
-    let secondaryIds = [];
-
-    if (existingContacts.length === 0) {
-      // Edge Case: New Contact Creation
+    if (overlappingContacts.length === 0) {
+      // No overlap found; create a new primary contact
       const newPrimary = await prisma.contact.create({
         data: {
           email,
@@ -34,54 +30,137 @@ router.post("/", async (req, res) => {
           linkPrecedence: "primary",
         },
       });
-      primaryContactId = newPrimary.id;
-      emails = [newPrimary.email].filter(Boolean);
-      phoneNumbers = [newPrimary.phoneNumber].filter(Boolean);
+
+      const emails = [];
+      const phoneNumbers = [];
+      if (newPrimary.email) emails.push(newPrimary.email);
+      if (newPrimary.phoneNumber) phoneNumbers.push(newPrimary.phoneNumber);
+
+      return res.status(200).json({
+        primaryContactId: newPrimary.id,
+        emails,
+        phoneNumbers,
+        secondaryContactIds: [],
+      });
     } else {
-      // Consolidate existing contact information
-      const primaryContact =
-        existingContacts.find((c) => c.linkPrecedence === "primary") ||
-        existingContacts[0];
+      // Overlap exists; find all associated primaries
+      const primaryIds = overlappingContacts
+        .map((contact) => {
+          if (contact.linkPrecedence === "primary") {
+            return contact.id;
+          } else if (contact.linkedId) {
+            return contact.linkedId;
+          }
+          return null;
+        })
+        .filter(Boolean);
 
-      primaryContactId = primaryContact.id;
-      emails = [
-        ...new Set(existingContacts.map((c) => c.email).filter(Boolean)),
-      ];
-      phoneNumbers = [
-        ...new Set(existingContacts.map((c) => c.phoneNumber).filter(Boolean)),
-      ];
-      secondaryIds = existingContacts
-        .filter((c) => c.id !== primaryContactId)
-        .map((c) => c.id);
+      // Fetch unique primaries
+      const uniquePrimaryIds = [...new Set(primaryIds)];
 
-      // Edge Case: Secondary Contact Creation
-      const newEmailNeeded = email && !emails.includes(email);
-      const newPhoneNeeded = phoneNumber && !phoneNumbers.includes(phoneNumber);
-      if (newEmailNeeded || newPhoneNeeded) {
-        const secondary = await prisma.contact.create({
+      // Fetch primary contacts
+      const primaryContacts = await prisma.contact.findMany({
+        where: {
+          id: { in: uniquePrimaryIds },
+        },
+      });
+
+      if (primaryContacts.length === 0) {
+        // Edge Case: Overlapping contacts without a primary
+        // Treat as new primary
+        const newPrimary = await prisma.contact.create({
+          data: {
+            email,
+            phoneNumber,
+            linkPrecedence: "primary",
+          },
+        });
+
+        const emails = [];
+        const phoneNumbers = [];
+        if (newPrimary.email) emails.push(newPrimary.email);
+        if (newPrimary.phoneNumber) phoneNumbers.push(newPrimary.phoneNumber);
+
+        return res.status(200).json({
+          primaryContactId: newPrimary.id,
+          emails,
+          phoneNumbers,
+          secondaryContactIds: [],
+        });
+      }
+
+      // Sort primaries by createdAt to find the oldest
+      primaryContacts.sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
+      const ultimatePrimary = primaryContacts[0];
+
+      // Check if the new contact overlaps with ultimatePrimary
+      const isOverlapping =
+        (email && ultimatePrimary.email === email) ||
+        (phoneNumber && ultimatePrimary.phoneNumber === phoneNumber);
+
+      if (isOverlapping) {
+        // Link as secondary to the ultimate primary
+        const newSecondary = await prisma.contact.create({
           data: {
             email,
             phoneNumber,
             linkPrecedence: "secondary",
-            linkedId: primaryContactId,
+            linkedId: ultimatePrimary.id,
           },
         });
-        secondaryIds.push(secondary.id);
-        if (newEmailNeeded) emails.push(email);
-        if (newPhoneNeeded) phoneNumbers.push(phoneNumber);
+
+        // Collect all related contacts (primary and its secondaries)
+        const allRelatedContacts = await prisma.contact.findMany({
+          where: {
+            OR: [{ id: ultimatePrimary.id }, { linkedId: ultimatePrimary.id }],
+          },
+        });
+
+        const emails = [
+          ...new Set(allRelatedContacts.map((c) => c.email).filter(Boolean)),
+        ];
+        const phoneNumbers = [
+          ...new Set(
+            allRelatedContacts.map((c) => c.phoneNumber).filter(Boolean)
+          ),
+        ];
+        const secondaryIds = allRelatedContacts
+          .filter((c) => c.linkPrecedence === "secondary")
+          .map((c) => c.id);
+
+        return res.status(200).json({
+          primaryContactId: ultimatePrimary.id,
+          emails,
+          phoneNumbers,
+          secondaryContactIds: secondaryIds,
+        });
+      } else {
+        // No direct overlap with ultimate primary; create a new primary
+        const newPrimary = await prisma.contact.create({
+          data: {
+            email,
+            phoneNumber,
+            linkPrecedence: "primary",
+          },
+        });
+
+        const emails = [];
+        const phoneNumbers = [];
+        if (newPrimary.email) emails.push(newPrimary.email);
+        if (newPrimary.phoneNumber) phoneNumbers.push(newPrimary.phoneNumber);
+
+        return res.status(200).json({
+          primaryContactId: newPrimary.id,
+          emails,
+          phoneNumbers,
+          secondaryContactIds: [],
+        });
       }
     }
-
-    // Return consolidated contact information
-    return res.status(200).json({
-      primaryContactId,
-      emails,
-      phoneNumbers,
-      secondaryContactIds: secondaryIds,
-    });
   } catch (error) {
-    // Edge Case: Database Errors
-    console.error(error);
+    console.error("Error Processing Request:", error);
     return res.status(500).json({ error: "Internal server error." });
   }
 });
