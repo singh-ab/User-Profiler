@@ -1,4 +1,4 @@
-# User Profiler and Recociliation System
+# User Profiler and Reconciliation System
 
 ## Overview
 
@@ -10,7 +10,6 @@ This User Profiler and Consolidator System is a robust backend service designed 
 - [Technologies Used](#technologies-used)
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Usage](#usage)
 - [API Endpoints](#api-endpoints)
 - [Testing](#testing)
 
@@ -35,13 +34,13 @@ This User Profiler and Consolidator System is a robust backend service designed 
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/yourusername/emotorad-contact-id.git
+   git clone https://github.com/singh-ab/User-Profiler.git
    ```
 
 2. **Navigate to the Project Directory**
 
    ```bash
-   cd emotorad-contact-id
+   cd User-Profiler
    ```
 
 3. **Install Dependencies**
@@ -55,7 +54,7 @@ This User Profiler and Consolidator System is a robust backend service designed 
    Create a [.env](./env) file in the root directory and add your database connection string:
 
    ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/emotorad"
+   DATABASE_URL=""
    ```
 
 5. **Run Prisma Migrations**
@@ -108,7 +107,7 @@ This User Profiler and Consolidator System is a robust backend service designed 
 
 ## Usage
 
-To use the system locally, follow these steps:
+To use the system locally, follow these steps :
 
 1. **Start the Server**
 
@@ -214,7 +213,7 @@ Identifies existing contacts or creates new ones based on the provided email and
 
 ## Testing
 
-To ensure the robustness of the Emotorad Contact Identification System, a comprehensive suite of tests has been implemented using **Supertest** and **Jest**.
+To ensure the robustness of the Profiler System, a comprehensive suite of tests has been implemented using **Supertest** and **Jest**.
 
 ### Running Tests
 
